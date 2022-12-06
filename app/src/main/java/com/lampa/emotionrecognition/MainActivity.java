@@ -23,16 +23,16 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
-import com.google.android.gms.tasks.OnFailureListener;
-import com.google.android.gms.tasks.OnSuccessListener;
-import com.google.android.gms.tasks.Task;
-import com.google.firebase.ml.vision.FirebaseVision;
-import com.google.firebase.ml.vision.common.FirebaseVisionImage;
-import com.google.firebase.ml.vision.face.FirebaseVisionFace;
-import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetector;
-import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetectorOptions;
-import com.lampa.emotionrecognition.classifiers.TFLiteImageClassifier;
-import com.lampa.emotionrecognition.utils.ImageUtils;
+//import com.google.android.gms.tasks.OnFailureListener;
+//import com.google.android.gms.tasks.OnSuccessListener;
+//import com.google.android.gms.tasks.Task;
+//import com.google.firebase.ml.vision.FirebaseVision;
+//import com.google.firebase.ml.vision.common.FirebaseVisionImage;
+//import com.google.firebase.ml.vision.face.FirebaseVisionFace;
+//import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetector;
+//import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetectorOptions;
+//import com.lampa.emotionrecognition.classifiers.TFLiteImageClassifier;
+//import com.lampa.emotionrecognition.utils.ImageUtils;
 import com.lampa.emotionrecognition.utils.SortingHelper;
 
 import java.io.File;
@@ -54,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
 
     private final int SCALED_IMAGE_BIGGEST_SIZE = 480;
 
-    private TFLiteImageClassifier mClassifier;
+    //private TFLiteImageClassifier mClassifier;
 
     private ProgressBar mClassificationProgressBar;
 
@@ -76,10 +76,10 @@ public class MainActivity extends AppCompatActivity {
 
         mClassificationProgressBar = findViewById(R.id.classification_progress_bar);
 
-        mClassifier = new TFLiteImageClassifier(
-                this.getAssets(),
-                MODEL_FILE_NAME,
-                getResources().getStringArray(R.array.emotions));
+//        mClassifier = new TFLiteImageClassifier(
+//                this.getAssets(),
+//                MODEL_FILE_NAME,
+//                getResources().getStringArray(R.array.emotions));
 
         mClassificationResult = new LinkedHashMap<>();
 
@@ -108,7 +108,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
 
-        mClassifier.close();
+//        mClassifier.close();
 
         File picturesDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
         for (File tempFile : picturesDir.listFiles()) {
@@ -227,10 +227,10 @@ public class MainActivity extends AppCompatActivity {
                     true);
 
             // An image in memory can be rotated
-            scaledImageBitmap = ImageUtils.rotateToNormalOrientation(
-                    getContentResolver(),
-                    scaledImageBitmap,
-                    imageUri);
+//            scaledImageBitmap = ImageUtils.rotateToNormalOrientation(
+//                    getContentResolver(),
+//                    scaledImageBitmap,
+//                    imageUri);
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -240,143 +240,151 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void detectFaces(Bitmap imageBitmap) {
-        FirebaseVisionFaceDetectorOptions faceDetectorOptions =
-                new FirebaseVisionFaceDetectorOptions.Builder()
-                        .setPerformanceMode(FirebaseVisionFaceDetectorOptions.ACCURATE)
-                        .setLandmarkMode(FirebaseVisionFaceDetectorOptions.NO_LANDMARKS)
-                        .setClassificationMode(FirebaseVisionFaceDetectorOptions.NO_CLASSIFICATIONS)
-                        .setMinFaceSize(0.1f)
-                        .build();
-
-        FirebaseVisionFaceDetector faceDetector = FirebaseVision.getInstance()
-                .getVisionFaceDetector(faceDetectorOptions);
-
-
-        final FirebaseVisionImage firebaseImage = FirebaseVisionImage.fromBitmap(imageBitmap);
-
-        Task<List<FirebaseVisionFace>> result =
-                faceDetector.detectInImage(firebaseImage)
-                        .addOnSuccessListener(
-                                new OnSuccessListener<List<FirebaseVisionFace>>() {
-                                    // When the search for faces was successfully completed
-                                    @Override
-                                    public void onSuccess(List<FirebaseVisionFace> faces) {
-                                        Bitmap imageBitmap = firebaseImage.getBitmap();
-                                        // Temporary Bitmap for drawing
-                                        Bitmap tmpBitmap = Bitmap.createBitmap(
-                                                imageBitmap.getWidth(),
-                                                imageBitmap.getHeight(),
-                                                imageBitmap.getConfig());
-
-                                        // Create an image-based canvas
-                                        Canvas tmpCanvas = new Canvas(tmpBitmap);
-                                        tmpCanvas.drawBitmap(
-                                                imageBitmap,
-                                                0,
-                                                0,
-                                                null);
-
-                                        Paint paint = new Paint();
-                                        paint.setColor(Color.GREEN);
-                                        paint.setStrokeWidth(2);
-                                        paint.setTextSize(48);
-
-                                        // Coefficient for indentation of face number
-                                        final float textIndentFactor = 0.1f;
-
-                                        // If at least one face was found
-                                        if (!faces.isEmpty()) {
-                                            // faceId ~ face text number
-                                            int faceId = 1;
-
-                                            for (FirebaseVisionFace face : faces) {
-                                                Rect faceRect = getInnerRect(
-                                                        face.getBoundingBox(),
-                                                        imageBitmap.getWidth(),
-                                                        imageBitmap.getHeight());
-
-                                                // Draw a rectangle around a face
-                                                paint.setStyle(Paint.Style.STROKE);
-                                                tmpCanvas.drawRect(faceRect, paint);
-
-                                                // Draw a face number in a rectangle
-                                                paint.setStyle(Paint.Style.FILL);
-                                                tmpCanvas.drawText(
-                                                        Integer.toString(faceId),
-                                                        faceRect.left +
-                                                                faceRect.width() * textIndentFactor,
-                                                        faceRect.bottom -
-                                                                faceRect.height() * textIndentFactor,
-                                                        paint);
-
-                                                // Get subarea with a face
-                                                Bitmap faceBitmap = Bitmap.createBitmap(
-                                                        imageBitmap,
-                                                        faceRect.left,
-                                                        faceRect.top,
-                                                        faceRect.width(),
-                                                        faceRect.height());
-
-                                                classifyEmotions(faceBitmap, faceId);
-
-                                                faceId++;
-                                            }
-
-                                            // Set the image with the face designations
-                                            mImageView.setImageBitmap(tmpBitmap);
-
-                                            ClassificationExpandableListAdapter adapter =
-                                                    new ClassificationExpandableListAdapter(mClassificationResult);
-
-                                            mClassificationExpandableListView.setAdapter(adapter);
-
-                                            // If single face, then immediately open the list
-                                            if (faces.size() == 1) {
-                                                mClassificationExpandableListView.expandGroup(0);
-                                            }
-                                        // If no faces are found
-                                        } else {
-                                            Toast.makeText(
-                                                    MainActivity.this,
-                                                    getString(R.string.faceless),
-                                                    Toast.LENGTH_LONG
-                                            ).show();
-                                        }
-
-                                        setCalculationStatusUI(false);
-                                    }
-                                })
-                        .addOnFailureListener(
-                                new OnFailureListener() {
-                                    @Override
-                                    public void onFailure(@NonNull Exception e) {
-
-                                        e.printStackTrace();
-
-                                        setCalculationStatusUI(false);
-                                    }
-                                });
+        classifyEmotions(imageBitmap, 0);
+        ClassificationExpandableListAdapter adapter =
+                new ClassificationExpandableListAdapter(mClassificationResult);
+        mClassificationExpandableListView.setAdapter(adapter);
+        mClassificationExpandableListView.expandGroup(0);
+//        FirebaseVisionFaceDetectorOptions faceDetectorOptions =
+//                new FirebaseVisionFaceDetectorOptions.Builder()
+//                        .setPerformanceMode(FirebaseVisionFaceDetectorOptions.ACCURATE)
+//                        .setLandmarkMode(FirebaseVisionFaceDetectorOptions.NO_LANDMARKS)
+//                        .setClassificationMode(FirebaseVisionFaceDetectorOptions.NO_CLASSIFICATIONS)
+//                        .setMinFaceSize(0.1f)
+//                        .build();
+//
+//        FirebaseVisionFaceDetector faceDetector = FirebaseVision.getInstance()
+//                .getVisionFaceDetector(faceDetectorOptions);
+//
+//
+//        final FirebaseVisionImage firebaseImage = FirebaseVisionImage.fromBitmap(imageBitmap);
+//
+//        Task<List<FirebaseVisionFace>> result =
+//                faceDetector.detectInImage(firebaseImage)
+//                        .addOnSuccessListener(
+//                                new OnSuccessListener<List<FirebaseVisionFace>>() {
+//                                    // When the search for faces was successfully completed
+//                                    @Override
+//                                    public void onSuccess(List<FirebaseVisionFace> faces) {
+//                                        Bitmap imageBitmap = firebaseImage.getBitmap();
+//                                        // Temporary Bitmap for drawing
+//                                        Bitmap tmpBitmap = Bitmap.createBitmap(
+//                                                imageBitmap.getWidth(),
+//                                                imageBitmap.getHeight(),
+//                                                imageBitmap.getConfig());
+//
+//                                        // Create an image-based canvas
+//                                        Canvas tmpCanvas = new Canvas(tmpBitmap);
+//                                        tmpCanvas.drawBitmap(
+//                                                imageBitmap,
+//                                                0,
+//                                                0,
+//                                                null);
+//
+//                                        Paint paint = new Paint();
+//                                        paint.setColor(Color.GREEN);
+//                                        paint.setStrokeWidth(2);
+//                                        paint.setTextSize(48);
+//
+//                                        // Coefficient for indentation of face number
+//                                        final float textIndentFactor = 0.1f;
+//
+//                                        // If at least one face was found
+//                                        if (!faces.isEmpty()) {
+//                                            // faceId ~ face text number
+//                                            int faceId = 1;
+//
+//                                            for (FirebaseVisionFace face : faces) {
+//                                                Rect faceRect = getInnerRect(
+//                                                        face.getBoundingBox(),
+//                                                        imageBitmap.getWidth(),
+//                                                        imageBitmap.getHeight());
+//
+//                                                // Draw a rectangle around a face
+//                                                paint.setStyle(Paint.Style.STROKE);
+//                                                tmpCanvas.drawRect(faceRect, paint);
+//
+//                                                // Draw a face number in a rectangle
+//                                                paint.setStyle(Paint.Style.FILL);
+//                                                tmpCanvas.drawText(
+//                                                        Integer.toString(faceId),
+//                                                        faceRect.left +
+//                                                                faceRect.width() * textIndentFactor,
+//                                                        faceRect.bottom -
+//                                                                faceRect.height() * textIndentFactor,
+//                                                        paint);
+//
+//                                                // Get subarea with a face
+//                                                Bitmap faceBitmap = Bitmap.createBitmap(
+//                                                        imageBitmap,
+//                                                        faceRect.left,
+//                                                        faceRect.top,
+//                                                        faceRect.width(),
+//                                                        faceRect.height());
+//
+//                                                classifyEmotions(faceBitmap, faceId);
+//
+//                                                faceId++;
+//                                            }
+//
+//                                            // Set the image with the face designations
+//                                            mImageView.setImageBitmap(tmpBitmap);
+//
+//                                            ClassificationExpandableListAdapter adapter =
+//                                                    new ClassificationExpandableListAdapter(mClassificationResult);
+//
+//                                            mClassificationExpandableListView.setAdapter(adapter);
+//
+//                                            // If single face, then immediately open the list
+//                                            if (faces.size() == 1) {
+//                                                mClassificationExpandableListView.expandGroup(0);
+//                                            }
+//                                        // If no faces are found
+//                                        } else {
+//                                            Toast.makeText(
+//                                                    MainActivity.this,
+//                                                    getString(R.string.faceless),
+//                                                    Toast.LENGTH_LONG
+//                                            ).show();
+//                                        }
+//
+//                                        setCalculationStatusUI(false);
+//                                    }
+//                                })
+//                        .addOnFailureListener(
+//                                new OnFailureListener() {
+//                                    @Override
+//                                    public void onFailure(@NonNull Exception e) {
+//
+//                                        e.printStackTrace();
+//
+//                                        setCalculationStatusUI(false);
+//                                    }
+//                                });
     }
 
     private void classifyEmotions(Bitmap imageBitmap, int faceId) {
-        Map<String, Float> result = mClassifier.classify(imageBitmap, true);
-
-        // Sort by increasing probability
-        LinkedHashMap<String, Float> sortedResult =
-                (LinkedHashMap<String, Float>) SortingHelper.sortByValues(result);
-
-        ArrayList<String> reversedKeys = new ArrayList<>(sortedResult.keySet());
-        // Change the order to get a decrease in probabilities
-        Collections.reverse(reversedKeys);
-
+//        Map<String, Float> result = mClassifier.classify(imageBitmap, true);
+//
+//        // Sort by increasing probability
+//        LinkedHashMap<String, Float> sortedResult =
+//                (LinkedHashMap<String, Float>) SortingHelper.sortByValues(result);
+//
+//        ArrayList<String> reversedKeys = new ArrayList<>(sortedResult.keySet());
+//        // Change the order to get a decrease in probabilities
+//        Collections.reverse(reversedKeys);
+//
         ArrayList<Pair<String, String>> faceGroup = new ArrayList<>();
-        for (String key : reversedKeys) {
-            String percentage = String.format("%.1f%%", sortedResult.get(key) * 100);
-            faceGroup.add(new Pair<>(key, percentage));
-        }
-
-        String groupName = getString(R.string.face) + " " + faceId;
-        mClassificationResult.put(groupName, faceGroup);
+        faceGroup.add(new Pair<>("Positive", "90.1%"));
+        faceGroup.add(new Pair<>("Negative", "9%"));
+        faceGroup.add(new Pair<>("Neutral", "0.9%"));
+//        for (String key : reversedKeys) {
+//            String percentage = String.format("%.1f%%", sortedResult.get(key) * 100);
+//            faceGroup.add(new Pair<>(key, percentage));
+//        }
+//
+//        String groupName = getString(R.string.face) + " " + faceId;
+        mClassificationResult.put("Demo face", faceGroup);
     }
 
     // Get a rectangle that lies inside the image area

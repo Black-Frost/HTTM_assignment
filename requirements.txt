@@ -1,0 +1,10 @@
+opencv-python
+Pillow
+numpy
+matplotlib
+seaborn
+prettytable
+scikit-learn
+kneed
+joblib
+lazypredict

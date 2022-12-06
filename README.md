@@ -28,7 +28,6 @@ Or we can run `Jupyter Notebook` with Google Colab at https://drive.google.com/f
 
 
 
-
 ## The application
 To detect faces on an image the application uses [ML Kit](https://developers.google.com/ml-kit).
 After detection complete the face image area converted into greyscale 48*48 pixel format, each pixel represents as [0, 1] float number.

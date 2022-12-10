@@ -8,3 +8,5 @@ scikit-learn
 kneed
 joblib
 lazypredict
+flask
+flask_cors

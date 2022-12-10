@@ -32,32 +32,31 @@ def predict_emotion(image, model_path='svm_model.sav', pca_path='pca_model.sav')
 
 
 def faces_detect_emotion(image):
+    '''Detect emotion of the face in picture. Cropping is expected to be done at client side'''
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    cropped = cv2.resize(gray, (48, 48), interpolation=cv2.INTER_LINEAR)
+    prob_json, result = predict_emotion(cropped)
+    return prob_json
+    
+def detect_face(image):
+    '''Detect faces in a picture. Returns the vertexes of the border surrounding the faces'''
+
     face_cascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
     # print("Run face detect")
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
-    final_result = {}
+    face_list = {"faces": []}
     for face in faces:
         (x,y,w,h) = face
-        cropped = gray[y:y+h, x:x+w]
-        # print(y, y+h, x, x+w)
-        # [int(y), int(y+h), int(x), int(x+w)]
         location = {
             "top": int(y),
             "bottom": int(y+h),
             "left": int(x),
             "right": int(x+w)
         }
-        cropped = cv2.resize(cropped, (48, 48), interpolation=cv2.INTER_LINEAR)
-        prob_json, result = predict_emotion(cropped)
-        tmp = {
-            "location": location,
-            "emotion": result,
-            "prob": prob_json
-        }
-        final_result["face_" + str(len(final_result) + 1)] = tmp
+        face_list["faces"].append(location)
+    return face_list
     
-    return final_result
 
 def toRGB(image):
     return cv2.cvtColor(np.array(image), cv2.COLOR_BGR2RGB)
@@ -76,18 +75,24 @@ def image_to_b64(image_path: str): # return base64 string
         print(encoded_string)
         return encoded_string
 
-
-# body: string
-@app.route('/api/v1/predict/', methods=['POST'])
-def predictImage():
+@app.route('/api/v1/face-detect/', methods=['POST'])
+def classiyEmotionApi():
     data = request.get_json(force=True)
     b64Img = data.get("image")
     img = b64_to_image(b64Img)
-    result = faces_detect_emotion(img)
-    #print(result)
-    response = make_response("Hello World")
-    return result
+    result = detect_face(img)
+    return jsonify(result)
 
+@app.route('/api/v1/emotion/', methods=["POST"])
+def detectFacesApi():
+    data = request.get_json(force=True)
+    b64ImgList = data.get("images")
+    emotionList = []
+    for b64Img in b64ImgList:
+        img = b64_to_image(b64Img)
+        result = faces_detect_emotion(img)
+        emotionList.append(result)
+    return jsonify(emotionList)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True, port=8000)

@@ -3,9 +3,6 @@ package com.lampa.emotionrecognition;
 import com.lampa.emotionrecognition.utils.*;
 import androidx.activity.result.*;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.activity.result.contract.ActivityResultContracts.*;
-import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
 
@@ -17,7 +14,6 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -41,10 +37,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.Response;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -219,8 +211,8 @@ public class MainActivity extends AppCompatActivity {
         return scaledImageBitmap;
     }
 
-    private void drawFaceBorder(Bitmap imageBitmap, List<Rect> faces) {
-        // Draw a sqaure around the faces
+    private void guiDrawFaceBorder(Bitmap imageBitmap, List<Rect> faces) {
+        // Draw a square around the face
         // Temporary Bitmap for drawing
         Bitmap tmpBitmap = Bitmap.createBitmap(
                 imageBitmap.getWidth(),
@@ -246,6 +238,7 @@ public class MainActivity extends AppCompatActivity {
         if (!faces.isEmpty()) {
             // faceId ~ face text number
             int faceId = 1;
+            List<Bitmap> faceBitmaps = new ArrayList<>();
             for (Rect faceBox : faces) {
                 Rect faceRect = getInnerRect(
                         faceBox,
@@ -274,60 +267,66 @@ public class MainActivity extends AppCompatActivity {
                         faceRect.width(),
                         faceRect.height());
 
-                classifyEmotions(faceBitmap, faceId);
+                //mClassifier.classifyEmotions(faceBitmap, faceId, this::guiupdateEmotionsList);
+                faceBitmaps.add(faceBitmap);
                 faceId++;
             }
             // Set the image with the face designations
             mImageView.setImageBitmap(tmpBitmap);
-            ClassificationExpandableListAdapter adapter =
-                    new ClassificationExpandableListAdapter(mClassificationResult);
 
-            mClassificationExpandableListView.setAdapter(adapter);
-
-            // If single face, then immediately open the list
-            if (faces.size() == 1) {
-                mClassificationExpandableListView.expandGroup(0);
-            }
-            // If no faces are found
+            //Starting to classify emotion
+            mClassifier.classifyEmotions(faceBitmaps, this::guiupdateEmotionsList);
         }
         else {
+            // If no faces are found
             Toast.makeText(
                     MainActivity.this,
                     getString(R.string.faceless),
                     Toast.LENGTH_LONG
             ).show();
+            setCalculationStatusUI(false);
         }
 
-        setCalculationStatusUI(false);
+
     }
 
     private void detectFaces(Bitmap imageBitmap) {
-        List<Rect> faces = mClassifier.getFaces(imageBitmap, this::drawFaceBorder);
+        mClassifier.detectFaces(imageBitmap, this::guiDrawFaceBorder);
     }
 
-    private void classifyEmotions(Bitmap imageBitmap, int faceId) {
-        //Map<String, Float> result = mClassifier.classify(imageBitmap, true);
+    private void guiupdateEmotionsList(List<Map<String, Float>> emotionLists) {
+        int faceId = 1;
+        for (Map<String, Float> emotionList : emotionLists) {
+            // Sort by increasing probability
+            LinkedHashMap<String, Float> sortedResult =
+                    (LinkedHashMap<String, Float>) SortingHelper.sortByValues(emotionList);
 
-        // Sort by increasing probability
-        Map<String, Float> result = new LinkedHashMap<>();
-        LinkedHashMap<String, Float> sortedResult =
-                (LinkedHashMap<String, Float>) SortingHelper.sortByValues(result);
+            ArrayList<String> reversedKeys = new ArrayList<>(sortedResult.keySet());
+            // Change the order to get a decrease in probabilities
+            Collections.reverse(reversedKeys);
 
-        ArrayList<String> reversedKeys = new ArrayList<>(sortedResult.keySet());
-        // Change the order to get a decrease in probabilities
-        Collections.reverse(reversedKeys);
+            ArrayList<Pair<String, String>> faceGroup = new ArrayList<>();
+            for (String key : reversedKeys) {
+                String percentage = String.format("%.1f%%", sortedResult.get(key) * 100);
+                faceGroup.add(new Pair<>(key, percentage));
+            }
 
-        ArrayList<Pair<String, String>> faceGroup = new ArrayList<>();
-//        faceGroup.add(new Pair<>("Positive", "90.1%"));
-//        faceGroup.add(new Pair<>("Negative", "9%"));
-//        faceGroup.add(new Pair<>("Neutral", "0.9%"));
-        for (String key : reversedKeys) {
-            String percentage = String.format("%.1f%%", sortedResult.get(key) * 100);
-            faceGroup.add(new Pair<>(key, percentage));
+            String groupName = getString(R.string.face) + " " + faceId;
+            mClassificationResult.put(groupName, faceGroup);
+            faceId++;
         }
 
-        String groupName = getString(R.string.face) + " " + faceId;
-        mClassificationResult.put(groupName, faceGroup);
+        // Update GUI
+        ClassificationExpandableListAdapter adapter =
+        new ClassificationExpandableListAdapter(mClassificationResult);
+
+        mClassificationExpandableListView.setAdapter(adapter);
+
+        // If single face, then immediately open the list
+        if (emotionLists.size() == 1) {
+            mClassificationExpandableListView.expandGroup(0);
+        }
+        setCalculationStatusUI(false);
     }
 
     // Get a rectangle that lies inside the image area

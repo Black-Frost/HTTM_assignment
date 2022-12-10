@@ -41,16 +41,17 @@ def faces_detect_emotion(image):
         (x,y,w,h) = face
         cropped = gray[y:y+h, x:x+w]
         # print(y, y+h, x, x+w)
-        location = {
-            "top": int(y),
-            "bottom": int(y+h),
-            "left": int(x),
-            "right": int(x+w)
-        }
+        # [int(y), int(y+h), int(x), int(x+w)]
+        # location = {
+        #     "top": int(y),
+        #     "bottom": int(y+h),
+        #     "left": int(x),
+        #     "right": int(x+w)
+        # }
         cropped = cv2.resize(cropped, (48, 48), interpolation=cv2.INTER_LINEAR)
         prob_json, result = predict_emotion(cropped)
         tmp = {
-            "location": location,
+            "location": [int(y), int(y+h), int(x), int(x+w)],
             "emotion": result,
             "prob": prob_json
         }

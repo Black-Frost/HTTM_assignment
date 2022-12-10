@@ -80,15 +80,13 @@ def image_to_b64(image_path: str): # return base64 string
 # body: string
 @app.route('/api/v1/predict/', methods=['POST'])
 def predictImage():
-    data = request.data
-    img = b64_to_image(data)
+    data = request.get_json(force=True)
+    b64Img = data.get("image")
+    img = b64_to_image(b64Img)
     result = faces_detect_emotion(img)
-    print(result)
-
+    #print(result)
     response = make_response("Hello World")
-    # response.headers.set('Content-Type', 'application/json')
     return result
-    # return response
 
 
 if __name__ == '__main__':

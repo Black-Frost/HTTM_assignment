@@ -1,6 +1,11 @@
 package com.lampa.emotionrecognition;
 
+import com.lampa.emotionrecognition.utils.*;
+import androidx.activity.result.*;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.activity.result.contract.ActivityResultContracts.*;
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
 
@@ -12,6 +17,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -23,17 +29,6 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.Toast;
 
-//import com.google.android.gms.tasks.OnFailureListener;
-//import com.google.android.gms.tasks.OnSuccessListener;
-//import com.google.android.gms.tasks.Task;
-//import com.google.firebase.ml.vision.FirebaseVision;
-//import com.google.firebase.ml.vision.common.FirebaseVisionImage;
-//import com.google.firebase.ml.vision.face.FirebaseVisionFace;
-//import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetector;
-//import com.google.firebase.ml.vision.face.FirebaseVisionFaceDetectorOptions;
-//import com.lampa.emotionrecognition.classifiers.TFLiteImageClassifier;
-//import com.lampa.emotionrecognition.utils.ImageUtils;
-import com.lampa.emotionrecognition.utils.SortingHelper;
 
 import java.io.File;
 import java.io.IOException;
@@ -43,29 +38,51 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.Response;
 
 public class MainActivity extends AppCompatActivity {
 
     private static final int GALLERY_REQUEST_CODE = 0;
     private static final int TAKE_PHOTO_REQUEST_CODE = 1;
 
-    private final String MODEL_FILE_NAME = "simple_classifier.tflite";
-
     private final int SCALED_IMAGE_BIGGEST_SIZE = 480;
 
-    //private TFLiteImageClassifier mClassifier;
+    private Classifier mClassifier;
 
     private ProgressBar mClassificationProgressBar;
 
     private ImageView mImageView;
 
     private Button mPickImageButton;
+    private final ActivityResultLauncher<Intent> mPickImageLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+            (ActivityResult result) -> {
+                clearClassificationExpandableListView();
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    Intent data = result.getData();
+                    if (data != null) {
+                        processImageRequestResult(data.getData());
+                    }
+                }
+        });
+
     private Button mTakePhotoButton;
+    private Uri mCurrentPhotoUri;
+    private final ActivityResultLauncher<Intent> mTakePhotoLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+            (ActivityResult result) -> {
+                clearClassificationExpandableListView();
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    processImageRequestResult(mCurrentPhotoUri);
+                }
+            });
 
     private ExpandableListView mClassificationExpandableListView;
 
-    private Uri mCurrentPhotoUri;
 
     private Map<String, List<Pair<String, String>>> mClassificationResult;
 
@@ -75,31 +92,17 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         mClassificationProgressBar = findViewById(R.id.classification_progress_bar);
-
-//        mClassifier = new TFLiteImageClassifier(
-//                this.getAssets(),
-//                MODEL_FILE_NAME,
-//                getResources().getStringArray(R.array.emotions));
+        mClassifier = new Classifier(getString(R.string.server_url));
 
         mClassificationResult = new LinkedHashMap<>();
 
         mImageView = findViewById(R.id.image_view);
 
         mPickImageButton = findViewById(R.id.pick_image_button);
-        mPickImageButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                pickFromGallery();
-            }
-        });
+        mPickImageButton.setOnClickListener((View v) -> pickFromGallery());
 
         mTakePhotoButton = findViewById(R.id.take_photo_button);
-        mTakePhotoButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                takePhoto();
-            }
-        });
+        mTakePhotoButton.setOnClickListener((View v) -> takePhoto());
 
         mClassificationExpandableListView = findViewById(R.id.classification_expandable_list_view);
     }
@@ -108,35 +111,10 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
 
-//        mClassifier.close();
-
+        // Delete temp files
         File picturesDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        for (File tempFile : picturesDir.listFiles()) {
+        for (File tempFile : Objects.requireNonNull(picturesDir.listFiles())) {
             tempFile.delete();
-        }
-    }
-
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (resultCode == Activity.RESULT_OK) {
-            switch (requestCode) {
-                // When an image from the gallery was successfully selected
-                case GALLERY_REQUEST_CODE:
-                    clearClassificationExpandableListView();
-                    // We can immediately get an image URI from an intent data
-                    Uri pickedImageUri = data.getData();
-                    processImageRequestResult(pickedImageUri);
-                    break;
-                // When a photo was taken successfully
-                case TAKE_PHOTO_REQUEST_CODE:
-                    clearClassificationExpandableListView();
-                    processImageRequestResult(mCurrentPhotoUri);
-                    break;
-
-                default:
-                    break;
-            }
         }
     }
 
@@ -167,7 +145,8 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(Intent.ACTION_PICK);
         intent.setType("image/*");
 
-        startActivityForResult(intent, GALLERY_REQUEST_CODE);
+        //startActivityForResult(intent, GALLERY_REQUEST_CODE);
+        mPickImageLauncher.launch(intent);
     }
 
     // Function to create an intent to take a photo
@@ -189,7 +168,8 @@ public class MainActivity extends AppCompatActivity {
                         photoFile);
 
                 intent.putExtra(MediaStore.EXTRA_OUTPUT, mCurrentPhotoUri);
-                startActivityForResult(intent, TAKE_PHOTO_REQUEST_CODE);
+                //startActivityForResult(intent, TAKE_PHOTO_REQUEST_CODE);
+                mTakePhotoLauncher.launch(intent);
             }
         }
     }
@@ -227,10 +207,10 @@ public class MainActivity extends AppCompatActivity {
                     true);
 
             // An image in memory can be rotated
-//            scaledImageBitmap = ImageUtils.rotateToNormalOrientation(
-//                    getContentResolver(),
-//                    scaledImageBitmap,
-//                    imageUri);
+            scaledImageBitmap = ImageUtils.rotateToNormalOrientation(
+                    getContentResolver(),
+                    scaledImageBitmap,
+                    imageUri);
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -239,152 +219,115 @@ public class MainActivity extends AppCompatActivity {
         return scaledImageBitmap;
     }
 
+    private void drawFaceBorder(Bitmap imageBitmap, List<Rect> faces) {
+        // Draw a sqaure around the faces
+        // Temporary Bitmap for drawing
+        Bitmap tmpBitmap = Bitmap.createBitmap(
+                imageBitmap.getWidth(),
+                imageBitmap.getHeight(),
+                imageBitmap.getConfig()
+        );
+
+        Canvas tmpCanvas = new Canvas(tmpBitmap);
+        tmpCanvas.drawBitmap(
+                imageBitmap,
+                0,
+                0,
+                null);
+
+        Paint paint = new Paint();
+        paint.setColor(Color.GREEN);
+        paint.setStrokeWidth(2);
+        paint.setTextSize(48);
+
+        // Coefficient for indentation of face number
+        final float textIndentFactor = 0.1f;
+
+        if (!faces.isEmpty()) {
+            // faceId ~ face text number
+            int faceId = 1;
+            for (Rect faceBox : faces) {
+                Rect faceRect = getInnerRect(
+                        faceBox,
+                        imageBitmap.getWidth(),
+                        imageBitmap.getHeight());
+
+                // Draw a rectangle around a face
+                paint.setStyle(Paint.Style.STROKE);
+                tmpCanvas.drawRect(faceRect, paint);
+
+                // Draw a face number in a rectangle
+                paint.setStyle(Paint.Style.FILL);
+                tmpCanvas.drawText(
+                        Integer.toString(faceId),
+                        faceRect.left +
+                                faceRect.width() * textIndentFactor,
+                        faceRect.bottom -
+                                faceRect.height() * textIndentFactor,
+                        paint);
+
+                // Get subarea with a face
+                Bitmap faceBitmap = Bitmap.createBitmap(
+                        imageBitmap,
+                        faceRect.left,
+                        faceRect.top,
+                        faceRect.width(),
+                        faceRect.height());
+
+                classifyEmotions(faceBitmap, faceId);
+                faceId++;
+            }
+            // Set the image with the face designations
+            mImageView.setImageBitmap(tmpBitmap);
+            ClassificationExpandableListAdapter adapter =
+                    new ClassificationExpandableListAdapter(mClassificationResult);
+
+            mClassificationExpandableListView.setAdapter(adapter);
+
+            // If single face, then immediately open the list
+            if (faces.size() == 1) {
+                mClassificationExpandableListView.expandGroup(0);
+            }
+            // If no faces are found
+        }
+        else {
+            Toast.makeText(
+                    MainActivity.this,
+                    getString(R.string.faceless),
+                    Toast.LENGTH_LONG
+            ).show();
+        }
+
+        setCalculationStatusUI(false);
+    }
+
     private void detectFaces(Bitmap imageBitmap) {
-        classifyEmotions(imageBitmap, 0);
-        ClassificationExpandableListAdapter adapter =
-                new ClassificationExpandableListAdapter(mClassificationResult);
-        mClassificationExpandableListView.setAdapter(adapter);
-        mClassificationExpandableListView.expandGroup(0);
-//        FirebaseVisionFaceDetectorOptions faceDetectorOptions =
-//                new FirebaseVisionFaceDetectorOptions.Builder()
-//                        .setPerformanceMode(FirebaseVisionFaceDetectorOptions.ACCURATE)
-//                        .setLandmarkMode(FirebaseVisionFaceDetectorOptions.NO_LANDMARKS)
-//                        .setClassificationMode(FirebaseVisionFaceDetectorOptions.NO_CLASSIFICATIONS)
-//                        .setMinFaceSize(0.1f)
-//                        .build();
-//
-//        FirebaseVisionFaceDetector faceDetector = FirebaseVision.getInstance()
-//                .getVisionFaceDetector(faceDetectorOptions);
-//
-//
-//        final FirebaseVisionImage firebaseImage = FirebaseVisionImage.fromBitmap(imageBitmap);
-//
-//        Task<List<FirebaseVisionFace>> result =
-//                faceDetector.detectInImage(firebaseImage)
-//                        .addOnSuccessListener(
-//                                new OnSuccessListener<List<FirebaseVisionFace>>() {
-//                                    // When the search for faces was successfully completed
-//                                    @Override
-//                                    public void onSuccess(List<FirebaseVisionFace> faces) {
-//                                        Bitmap imageBitmap = firebaseImage.getBitmap();
-//                                        // Temporary Bitmap for drawing
-//                                        Bitmap tmpBitmap = Bitmap.createBitmap(
-//                                                imageBitmap.getWidth(),
-//                                                imageBitmap.getHeight(),
-//                                                imageBitmap.getConfig());
-//
-//                                        // Create an image-based canvas
-//                                        Canvas tmpCanvas = new Canvas(tmpBitmap);
-//                                        tmpCanvas.drawBitmap(
-//                                                imageBitmap,
-//                                                0,
-//                                                0,
-//                                                null);
-//
-//                                        Paint paint = new Paint();
-//                                        paint.setColor(Color.GREEN);
-//                                        paint.setStrokeWidth(2);
-//                                        paint.setTextSize(48);
-//
-//                                        // Coefficient for indentation of face number
-//                                        final float textIndentFactor = 0.1f;
-//
-//                                        // If at least one face was found
-//                                        if (!faces.isEmpty()) {
-//                                            // faceId ~ face text number
-//                                            int faceId = 1;
-//
-//                                            for (FirebaseVisionFace face : faces) {
-//                                                Rect faceRect = getInnerRect(
-//                                                        face.getBoundingBox(),
-//                                                        imageBitmap.getWidth(),
-//                                                        imageBitmap.getHeight());
-//
-//                                                // Draw a rectangle around a face
-//                                                paint.setStyle(Paint.Style.STROKE);
-//                                                tmpCanvas.drawRect(faceRect, paint);
-//
-//                                                // Draw a face number in a rectangle
-//                                                paint.setStyle(Paint.Style.FILL);
-//                                                tmpCanvas.drawText(
-//                                                        Integer.toString(faceId),
-//                                                        faceRect.left +
-//                                                                faceRect.width() * textIndentFactor,
-//                                                        faceRect.bottom -
-//                                                                faceRect.height() * textIndentFactor,
-//                                                        paint);
-//
-//                                                // Get subarea with a face
-//                                                Bitmap faceBitmap = Bitmap.createBitmap(
-//                                                        imageBitmap,
-//                                                        faceRect.left,
-//                                                        faceRect.top,
-//                                                        faceRect.width(),
-//                                                        faceRect.height());
-//
-//                                                classifyEmotions(faceBitmap, faceId);
-//
-//                                                faceId++;
-//                                            }
-//
-//                                            // Set the image with the face designations
-//                                            mImageView.setImageBitmap(tmpBitmap);
-//
-//                                            ClassificationExpandableListAdapter adapter =
-//                                                    new ClassificationExpandableListAdapter(mClassificationResult);
-//
-//                                            mClassificationExpandableListView.setAdapter(adapter);
-//
-//                                            // If single face, then immediately open the list
-//                                            if (faces.size() == 1) {
-//                                                mClassificationExpandableListView.expandGroup(0);
-//                                            }
-//                                        // If no faces are found
-//                                        } else {
-//                                            Toast.makeText(
-//                                                    MainActivity.this,
-//                                                    getString(R.string.faceless),
-//                                                    Toast.LENGTH_LONG
-//                                            ).show();
-//                                        }
-//
-//                                        setCalculationStatusUI(false);
-//                                    }
-//                                })
-//                        .addOnFailureListener(
-//                                new OnFailureListener() {
-//                                    @Override
-//                                    public void onFailure(@NonNull Exception e) {
-//
-//                                        e.printStackTrace();
-//
-//                                        setCalculationStatusUI(false);
-//                                    }
-//                                });
+        List<Rect> faces = mClassifier.getFaces(imageBitmap, this::drawFaceBorder);
     }
 
     private void classifyEmotions(Bitmap imageBitmap, int faceId) {
-//        Map<String, Float> result = mClassifier.classify(imageBitmap, true);
-//
-//        // Sort by increasing probability
-//        LinkedHashMap<String, Float> sortedResult =
-//                (LinkedHashMap<String, Float>) SortingHelper.sortByValues(result);
-//
-//        ArrayList<String> reversedKeys = new ArrayList<>(sortedResult.keySet());
-//        // Change the order to get a decrease in probabilities
-//        Collections.reverse(reversedKeys);
-//
+        //Map<String, Float> result = mClassifier.classify(imageBitmap, true);
+
+        // Sort by increasing probability
+        Map<String, Float> result = new LinkedHashMap<>();
+        LinkedHashMap<String, Float> sortedResult =
+                (LinkedHashMap<String, Float>) SortingHelper.sortByValues(result);
+
+        ArrayList<String> reversedKeys = new ArrayList<>(sortedResult.keySet());
+        // Change the order to get a decrease in probabilities
+        Collections.reverse(reversedKeys);
+
         ArrayList<Pair<String, String>> faceGroup = new ArrayList<>();
-        faceGroup.add(new Pair<>("Positive", "90.1%"));
-        faceGroup.add(new Pair<>("Negative", "9%"));
-        faceGroup.add(new Pair<>("Neutral", "0.9%"));
-//        for (String key : reversedKeys) {
-//            String percentage = String.format("%.1f%%", sortedResult.get(key) * 100);
-//            faceGroup.add(new Pair<>(key, percentage));
-//        }
-//
-//        String groupName = getString(R.string.face) + " " + faceId;
-        mClassificationResult.put("Demo face", faceGroup);
+//        faceGroup.add(new Pair<>("Positive", "90.1%"));
+//        faceGroup.add(new Pair<>("Negative", "9%"));
+//        faceGroup.add(new Pair<>("Neutral", "0.9%"));
+        for (String key : reversedKeys) {
+            String percentage = String.format("%.1f%%", sortedResult.get(key) * 100);
+            faceGroup.add(new Pair<>(key, percentage));
+        }
+
+        String groupName = getString(R.string.face) + " " + faceId;
+        mClassificationResult.put(groupName, faceGroup);
     }
 
     // Get a rectangle that lies inside the image area
@@ -409,16 +352,15 @@ public class MainActivity extends AppCompatActivity {
 
     // Create a temporary file for the image
     private File createImageFile() throws IOException {
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(new Date());
         String imageFileName = "ER_" + timeStamp + "_";
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        File image = File.createTempFile(
+
+        return File.createTempFile(
                 imageFileName,
                 ".jpg",
                 storageDir
         );
-
-        return image;
     }
 
     //Change the interface depending on the status of calculations

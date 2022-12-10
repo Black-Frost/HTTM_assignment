@@ -5,4 +5,5 @@
     <string name="classification_delimiter_text_view">-</string>
     <string name="face">Face</string>
     <string name="faceless">No face detected</string>
+    <string name="server_url" translatable="false">https://2ac5-171-232-76-165.ngrok.io</string>
 </resources>

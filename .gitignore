@@ -85,3 +85,7 @@ lint/tmp/
 # lint/reports/
 
 server/__pycache__/
+server/Include/*
+server/Lib/*
+server/Scripts/*
+server/pyvenv.cfg

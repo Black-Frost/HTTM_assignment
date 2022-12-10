@@ -1,5 +1,4 @@
-# Run this file on server to return a Concentration Index (CI).
-# Analysis is in 'Util' folder.
+from face_detect import face_detect
 
 import base64
 import io
@@ -16,7 +15,7 @@ from PIL import Image
 from io import BytesIO
 # from StringIO import StringIO
 
-sys.path.append("../")
+
 
 # from VideoCap import VideoCap
 

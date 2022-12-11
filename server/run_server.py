@@ -36,6 +36,10 @@ def predict_emotion(image, model_path='svm_model.sav', pca_path='pca_model.sav')
     return prob_json, result
 
 def minmax_scale(image):
+    if image[6] > 0.15:
+        image[6] -= 0.15
+        for i in range(6):
+            image[i] += 0.025
     eps = 1e-2
     image = (image - image.min()) / (image.max() - image.min())
     image = (image + eps) / (image.sum() + 7 * eps)

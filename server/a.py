@@ -11,8 +11,8 @@ with open("tmp2.jpg", "rb") as image_file:
 
 print(encoded_string)
 
-host = "https://dbf8-2001-ee0-53b6-6c70-9565-919a-860d-6833.ap.ngrok.io/api/v1/predict"
-resp = requests.post(url=host, data=encoded_string)
+host = "https://d603-2001-ee0-53b6-6c70-9565-919a-860d-6833.ap.ngrok.io/api/v1/emotion"
+resp = requests.post(url=host, json={'images': [encoded_string]})
 print(resp.text)
 
 # imgdata = base64.b64decode(encoded_string)

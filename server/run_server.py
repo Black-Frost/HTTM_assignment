@@ -6,6 +6,9 @@ from flask import (Flask, Response, jsonify, json, make_response, render_templat
                    request, send_file, send_from_directory)
 from PIL import Image
 import joblib
+from torchvision.transforms import transforms
+import torch
+
 
 
 app = Flask(__name__)
@@ -16,7 +19,9 @@ app.config['CORS_HEADER'] = 'Content-Type'
 # Pillow is RGB color
 
 # cv2.rectangle(im, (x, y), (x + w, y + h), (255, 0, 0), 2)
-EMOTION = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral']
+EMOTION = ['Angry', 'Disgust', 'Fear', 'Happy', 'Sad', 'Surprise', 'Neutral'] # old
+# {0: 'Anger', 1: 'Disgust', 2: 'Fear', 3: 'Happiness', 4: 'Neutral', 5: 'Sadness', 6: 'Surprise'}
+EMOTION_TORCH = ['Angry', 'Disgust', 'Fear', 'Happy', 'Neutral', 'Sad', 'Surprise'] # new
 
 # FER predict
 def predict_emotion(image, model_path='svm_model.sav', pca_path='pca_model.sav'):
@@ -30,12 +35,38 @@ def predict_emotion(image, model_path='svm_model.sav', pca_path='pca_model.sav')
     result = EMOTION[np.array(result_prob).argmax()]
     return prob_json, result
 
+def minmax_scale(image):
+    eps = 1e-2
+    image = (image - image.min()) / (image.max() - image.min())
+    image = (image + eps) / (image.sum() + 7 * eps)
+    return image
+
+def predict_emotion_torch(image, model_path='enet_b2_7.pt'):
+    model = torch.load(model_path, map_location='cpu')  
+    convert = transforms.Compose([
+        transforms.Resize((260,260)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                        std=[0.229, 0.224, 0.225])
+    ])
+    img = Image.fromarray(image)
+    with torch.no_grad():
+        predict = model((convert(img)).unsqueeze(0).to(torch.device('cpu')))
+        result_prob = predict.cpu().numpy()[0]
+        result_prob = minmax_scale(result_prob).astype('str') # How to serialize numpy.float64?
+        prob_json = {EMOTION_TORCH[i]: result_prob[i] for i in range(7)}
+        result = EMOTION_TORCH[np.array(result_prob).argmax()]
+        return prob_json, result
 
 def faces_detect_emotion(image):
     '''Detect emotion of the face in picture. Cropping is expected to be done at client side'''
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    cropped = cv2.resize(gray, (48, 48), interpolation=cv2.INTER_LINEAR)
-    prob_json, result = predict_emotion(cropped)
+    # # predict_emotion
+    # gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # cropped = cv2.resize(gray, (48, 48), interpolation=cv2.INTER_LINEAR)
+    # prob_json, result = predict_emotion(cropped)
+
+    # predict_emotion_torch
+    prob_json, result = predict_emotion_torch(toRGB(image))
     return prob_json
     
 def detect_face(image):

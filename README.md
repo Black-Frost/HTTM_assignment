@@ -2,7 +2,7 @@
 This repository represents a code for creating a SVM model using FER 2013 dataset comes with its evaluation and an android application performing recognition of facial emotions on an image.  
 
 ## Author
-**Quach Minh Tuan - Vo Van Tien Dung - Phuoc Vinh**
+**Quach Minh Tuan - Vo Van Tien Dung**
 
 ## Code for SVM model
 ### Requirements

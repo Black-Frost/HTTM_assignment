@@ -6,7 +6,7 @@ import numpy as np
 import cv2
 import requests
 
-with open("tmp2.jpg", "rb") as image_file:
+with open("123.jpeg", "rb") as image_file:
     encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
 
 print(encoded_string)

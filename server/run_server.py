@@ -53,7 +53,7 @@ def predict_emotion_torch(image, model_path='enet_b2_7.pt'):
     with torch.no_grad():
         predict = model((convert(img)).unsqueeze(0).to(torch.device('cpu')))
         result_prob = predict.cpu().numpy()[0]
-        result_prob = minmax_scale(result_prob).astype('str') # How to serialize numpy.float64?
+        result_prob = minmax_scale(result_prob).tolist()
         prob_json = {EMOTION_TORCH[i]: result_prob[i] for i in range(7)}
         result = EMOTION_TORCH[np.array(result_prob).argmax()]
         return prob_json, result
